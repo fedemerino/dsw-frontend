@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { getPropertyById, getReviewsByPropertyId } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState } from "react"
+import { getPropertyById } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import {
   Star,
   Heart,
@@ -20,28 +21,81 @@ import {
   CalendarIcon,
   Users,
   ChevronRight,
-} from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+} from "lucide-react"
+import { useNavigate, useParams } from "react-router-dom"
+import { handleFavoriteToggle } from "@/lib/utils"
+import { format } from "date-fns"
+import { Separator } from "../ui/separator"
+import { es } from "date-fns/locale"
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
+import { Calendar } from "../ui/calendar"
 
 export const Property = () => {
-  const params = useParams();
-  const [property, setProperty] = useState(null);
-  const [reviews, setReviews] = useState([]);
-  const navigate = useNavigate();
+  const params = useParams()
+  const [property, setProperty] = useState(null)
+  const [isFavorite, setIsFavorite] = useState(false)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [checkIn, setCheckIn] = useState(null)
+  const [checkOut, setCheckOut] = useState(null)
+  const [guests, setGuests] = useState(1)
+  const [showAllReviews, setShowAllReviews] = useState(false)
+  const navigate = useNavigate()
+  const userEmail = "admin@reservar.com"
+
   useState(() => {
     const fetchPropertyDetails = async () => {
-      const propertyData = await getPropertyById(params.id);
-      setProperty(propertyData);
-      const reviewsData = await getReviewsByPropertyId(params.id);
-      setReviews(reviewsData);
-    };
-    fetchPropertyDetails();
-  }, [params.id]);
+      const propertyData = await getPropertyById(params.id)
+      console.log(propertyData)
+      setProperty(propertyData)
+    }
+    fetchPropertyDetails()
+  }, [params.id])
 
   if (!property) {
-    return <div>Loading...</div>;
+    return <div>Loading...</div>
   }
 
+  const handleFavClick = () => {
+    handleFavoriteToggle(isFavorite, userEmail, property.id, setIsFavorite)
+  }
+
+  const amenityIcons = {
+    WiFi: Wifi,
+    Parking: Car,
+    Piscina: Waves,
+    Cocina: Utensils,
+    "Aire acondicionado": Wind,
+    TV: Tv,
+  }
+
+  const calculateTotal = () => {
+    if (!checkIn || !checkOut) return 0
+    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
+    return nights * property.price
+  }
+
+  const handleReserve = () => {
+    console.log('Reservar clicked')
+    // if (!user) {
+    //   router.push("/login")
+    //   return
+    // }
+    // if (!checkIn || !checkOut) {
+    //   alert("Por favor selecciona las fechas de check-in y check-out")
+    //   return
+    // }
+
+    // const bookingData = {
+    //   propertyId: property.id,
+    //   checkIn: checkIn.toISOString(),
+    //   checkOut: checkOut.toISOString(),
+    //   guests,
+    //   totalPrice: calculateTotal() + Math.round(calculateTotal() * 0.1),
+    // }
+
+    // localStorage.setItem("pendingBooking", JSON.stringify(bookingData))
+    // router.push("/booking/confirm")
+  }
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -62,12 +116,16 @@ export const Property = () => {
         {/* Title and Actions */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-2 text-balance">{property.title}</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2 text-balance">
+              {property.title}
+            </h1>
             <div className="flex items-center gap-4 text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Star className="h-4 w-4 fill-accent text-accent" />
-                <span className="font-semibold text-foreground">{property.rating}</span>
-                <span>({property.reviews} reseñas)</span>
+                <span className="font-semibold text-foreground">
+                  {property.rating}
+                </span>
+                <span>({property.reviews.length} reseñas)</span>
               </div>
               <div className="flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
@@ -79,10 +137,14 @@ export const Property = () => {
             <Button
               variant="outline"
               size="icon"
-              onClick={handleFavoriteToggle}
-              className={cn(isPropertyFavorite && "text-accent hover:text-accent")}
+              onClick={handleFavClick}
+              className={cn(isFavorite && "text-accent hover:text-accent")}
             >
-              <Heart className={cn("h-4 w-4", isPropertyFavorite && "fill-current")} />
+              <Heart
+                className="h-4 w-4"
+                strokeOpacity="0.5"
+                fill={isFavorite ? "red" : "none"}
+              />
             </Button>
             <Button variant="outline" size="icon">
               <Share2 className="h-4 w-4" />
@@ -94,18 +156,22 @@ export const Property = () => {
           {/* Imagen principal */}
           <div className="relative rounded-xl overflow-hidden h-[500px]">
             <img
-              src={images[selectedImageIndex] || "/placeholder.svg"}
+              src={property.images[selectedImageIndex].url || "/placeholder.svg"}
               alt={`${property.title} - imagen ${selectedImageIndex + 1}`}
               className="w-full h-full object-cover"
             />
             {/* Navegación de la imagen principal */}
-            {images.length > 1 && (
+            {property.images.length > 1 && (
               <>
                 <Button
                   size="icon"
                   variant="secondary"
                   className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-card/90 hover:bg-card"
-                  onClick={() => setSelectedImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1))}
+                  onClick={() =>
+                    setSelectedImageIndex((prev) =>
+                      prev === 0 ? property.images.length - 1 : prev - 1
+                    )
+                  }
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
@@ -113,7 +179,11 @@ export const Property = () => {
                   size="icon"
                   variant="secondary"
                   className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-card/90 hover:bg-card"
-                  onClick={() => setSelectedImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1))}
+                  onClick={() =>
+                    setSelectedImageIndex((prev) =>
+                      prev === property.images.length - 1 ? 0 : prev + 1
+                    )
+                  }
                 >
                   <ChevronRight className="h-5 w-5" />
                 </Button>
@@ -122,15 +192,17 @@ export const Property = () => {
           </div>
 
           {/* Miniaturas */}
-          {images.length > 1 && (
+          {property.images.length > 1 && (
             <div className="grid grid-cols-4 gap-2">
-              {images.map((img, index) => (
+              {property.images.map((img, index) => (
                 <button
                   key={index}
                   onClick={() => setSelectedImageIndex(index)}
                   className={cn(
                     "relative rounded-lg overflow-hidden h-24 transition-all",
-                    selectedImageIndex === index ? "ring-2 ring-primary ring-offset-2" : "opacity-70 hover:opacity-100",
+                    selectedImageIndex === index
+                      ? "ring-2 ring-primary ring-offset-2"
+                      : "opacity-70 hover:opacity-100"
                   )}
                 >
                   <img
@@ -152,7 +224,9 @@ export const Property = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h2 className="text-xl font-semibold text-foreground mb-1">{property.type}</h2>
+                    <h2 className="text-xl font-semibold text-foreground mb-1">
+                      {property.type}
+                    </h2>
                     <div className="flex items-center gap-4 text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Bed className="h-4 w-4" />
@@ -160,28 +234,32 @@ export const Property = () => {
                       </div>
                       <div className="flex items-center gap-1">
                         <Bath className="h-4 w-4" />
-                        <span>{property.baths} baños</span>
+                        <span>{property.bathrooms} baños</span>
                       </div>
                     </div>
                   </div>
                   <Badge variant="secondary">{property.type}</Badge>
                 </div>
                 <Separator className="my-4" />
-                <p className="text-muted-foreground leading-relaxed">{property.description}</p>
+                <p className="text-muted-foreground leading-relaxed">
+                  {property.description}
+                </p>
               </CardContent>
             </Card>
 
             {/* Amenities */}
             <Card>
               <CardContent className="p-6">
-                <h2 className="text-xl font-semibold text-foreground mb-4">Servicios</h2>
+                <h2 className="text-xl font-semibold text-foreground mb-4">
+                  Servicios
+                </h2>
                 <div className="grid grid-cols-2 gap-4">
                   {property.amenities.map((amenity) => {
-                    const Icon = amenityIcons[amenity] || Wifi
+                    const Icon = amenityIcons[amenity.name] || Wifi
                     return (
-                      <div key={amenity} className="flex items-center gap-3">
+                      <div key={amenity.id} className="flex items-center gap-3">
                         <Icon className="h-5 w-5 text-muted-foreground" />
-                        <span className="text-foreground">{amenity}</span>
+                        <span className="text-foreground">{amenity.name}</span>
                       </div>
                     )
                   })}
@@ -193,51 +271,77 @@ export const Property = () => {
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-foreground">Reseñas</h2>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Reseñas
+                  </h2>
                   <div className="flex items-center gap-2">
                     <Star className="h-5 w-5 fill-accent text-accent" />
-                    <span className="text-lg font-semibold">{property.rating}</span>
-                    <span className="text-muted-foreground">({property.reviews} reseñas)</span>
+                    <span className="text-lg font-semibold">
+                      {property.rating}
+                    </span>
+                    <span className="text-muted-foreground">
+                      ({property.reviews.length} reseñas)
+                    </span>
                   </div>
                 </div>
 
                 <div className="space-y-6">
-                  {displayedReviews.map((review) => (
-                    <div key={review.id} className="border-b border-border last:border-0 pb-6 last:pb-0">
+                  {property.reviews.map((review) => (
+                    <div
+                      key={review.id}
+                      className="border-b border-border last:border-0 pb-6 last:pb-0"
+                    >
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                          <span className="font-semibold text-foreground">{review.userName.charAt(0)}</span>
+                          <span className="font-semibold text-foreground">
+                            {review.user.fullName.charAt(0)}
+                          </span>
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
                             <div>
-                              <p className="font-semibold text-foreground">{review.userName}</p>
+                              <p className="font-semibold text-foreground">
+                                {review.user.fullName}
+                              </p>
                               <p className="text-sm text-muted-foreground">
-                                {format(new Date(review.date), "MMMM yyyy", { locale: es })}
+                                {format(new Date(review.createdAt), "MMMM yyyy", {
+                                  locale: es,
+                                })}
                               </p>
                             </div>
                             <div className="flex items-center gap-1">
                               <Star className="h-4 w-4 fill-accent text-accent" />
-                              <span className="font-semibold">{review.rating}</span>
+                              <span className="font-semibold">
+                                {review.rating}
+                              </span>
                             </div>
                           </div>
-                          <p className="text-muted-foreground leading-relaxed">{review.comment}</p>
+                          <p className="text-muted-foreground leading-relaxed">
+                            {review.comment}
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {reviews.length > 3 && (
+                {property.reviews.length > 3 && (
                   <div className="mt-6 text-center">
-                    <Button variant="outline" onClick={() => setShowAllReviews(!showAllReviews)}>
-                      {showAllReviews ? "Ver menos reseñas" : `Ver todas las reseñas (${reviews.length})`}
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAllReviews(!showAllReviews)}
+                    >
+                      {showAllReviews
+                        ? "Ver menos reseñas"
+                        : `Ver todas las reseñas (${property.reviews.length})`}
                     </Button>
                   </div>
                 )}
 
-                {reviews.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">Aún no hay reseñas para esta propiedad</p>
+                {property.reviews.length === 0 && (
+                  <p className="text-center text-muted-foreground py-8">
+                    Aún no hay reseñas para esta propiedad
+                  </p>
                 )}
               </CardContent>
             </Card>
@@ -249,7 +353,9 @@ export const Property = () => {
               <CardContent className="p-6">
                 <div className="mb-6">
                   <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-3xl font-bold text-foreground">${property.price}</span>
+                    <span className="text-3xl font-bold text-foreground">
+                      ${property.pricePerNight}
+                    </span>
                     <span className="text-muted-foreground">/ noche</span>
                   </div>
                 </div>
@@ -261,14 +367,21 @@ export const Property = () => {
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className={cn("justify-start text-left font-normal", !checkIn && "text-muted-foreground")}
+                          className={cn(
+                            "justify-start text-left font-normal",
+                            !checkIn && "text-muted-foreground"
+                          )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {checkIn ? format(checkIn, "dd/MM/yy") : "Check-in"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={checkIn} onSelect={setCheckIn} />
+                        <Calendar
+                          mode="single"
+                          selected={checkIn}
+                          onSelect={setCheckIn}
+                        />
                       </PopoverContent>
                     </Popover>
 
@@ -276,14 +389,23 @@ export const Property = () => {
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className={cn("justify-start text-left font-normal", !checkOut && "text-muted-foreground")}
+                          className={cn(
+                            "justify-start text-left font-normal",
+                            !checkOut && "text-muted-foreground"
+                          )}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {checkOut ? format(checkOut, "dd/MM/yy") : "Check-out"}
+                          {checkOut
+                            ? format(checkOut, "dd/MM/yy")
+                            : "Check-out"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={checkOut} onSelect={setCheckOut} />
+                        <Calendar
+                          mode="single"
+                          selected={checkOut}
+                          onSelect={setCheckOut}
+                        />
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -303,7 +425,9 @@ export const Property = () => {
                       >
                         -
                       </Button>
-                      <span className="w-8 text-center font-semibold">{guests}</span>
+                      <span className="w-8 text-center font-semibold">
+                        {guests}
+                      </span>
                       <Button
                         variant="outline"
                         size="icon"
@@ -323,18 +447,32 @@ export const Property = () => {
                     <div className="space-y-2 pt-4 border-t border-border">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">
-                          ${property.price} x {Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))} noches
+                          ${property.price} x{" "}
+                          {Math.ceil(
+                            (checkOut - checkIn) / (1000 * 60 * 60 * 24)
+                          )}{" "}
+                          noches
                         </span>
-                        <span className="font-semibold">${calculateTotal()}</span>
+                        <span className="font-semibold">
+                          ${calculateTotal()}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Tarifa de servicio</span>
-                        <span className="font-semibold">${Math.round(calculateTotal() * 0.1)}</span>
+                        <span className="text-muted-foreground">
+                          Tarifa de servicio
+                        </span>
+                        <span className="font-semibold">
+                          ${Math.round(calculateTotal() * 0.1)}
+                        </span>
                       </div>
                       <Separator />
                       <div className="flex justify-between font-semibold text-lg">
                         <span>Total</span>
-                        <span>${calculateTotal() + Math.round(calculateTotal() * 0.1)}</span>
+                        <span>
+                          $
+                          {calculateTotal() +
+                            Math.round(calculateTotal() * 0.1)}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -345,5 +483,5 @@ export const Property = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}

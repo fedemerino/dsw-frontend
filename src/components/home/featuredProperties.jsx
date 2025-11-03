@@ -1,4 +1,4 @@
-import { PropertyCard } from '@/components/home/propertyCard';
+import { PropertyCard } from '@/components/shared/propertyCard';
 import { getFeaturedListings } from '@/lib/api';
 import { useEffect, useState } from 'react';
 
