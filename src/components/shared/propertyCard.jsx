@@ -3,16 +3,15 @@ import { Badge } from "@/components/ui/badge"
 import { Star, Bed, Bath, Heart } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
-import React from "react"
-import { handleFavoriteToggle } from "@/lib/utils"
+import { useFavorites } from "@/hooks/useFavorites"
 
 export function PropertyCard({ property }) {
-  const [isFavorite, setIsFavorite] = React.useState(false)
-  const userEmail = "admin@reservar.com"
+  const { toggleFavorite, isFavorite } = useFavorites()
+  
   const handleFavClick = (event) => {
     event.stopPropagation()
     event.preventDefault()
-    handleFavoriteToggle(isFavorite, userEmail, property.id, setIsFavorite)
+    toggleFavorite(property.id)
   }
 
   return (
@@ -33,7 +32,7 @@ export function PropertyCard({ property }) {
             <Heart
               className="h-4 w-4"
               strokeOpacity="0.5"
-              fill={isFavorite ? "red" : "none"}
+              fill={isFavorite(property.id) ? "red" : "none"}
             />
           </Button>
           <Badge className="absolute top-3 left-3 bg-card/90 text-foreground border-0">

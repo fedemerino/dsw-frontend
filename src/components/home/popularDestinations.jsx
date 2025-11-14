@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { getPopularDestinations } from '@/lib/api';
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 export function PopularDestinations() {
   const [popularDestinations, setPopularDestinations] = useState([]);
@@ -25,27 +26,30 @@ export function PopularDestinations() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {popularDestinations.map((destination) => (
-            <Card
+            <Link
               key={destination.name}
-              className="group overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer border-border"
+              to={`/search?search=${encodeURIComponent(destination.name)}`}
+              className="block"
             >
-              <div className="relative overflow-hidden aspect-[3/4]">
-                <img
-                  src={destination.imageUrl || '/placeholder.svg'}
-                  alt={destination.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <CardContent className="absolute bottom-0 left-0 right-0 p-6 text-white">
-                  <h3 className="text-2xl font-bold mb-1">
-                    {destination.name}
-                  </h3>
-                  <p className="text-sm text-white/90">
-                    {destination.properties}
-                  </p>
-                </CardContent>
-              </div>
-            </Card>
+              <Card className="group overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer border-border h-full">
+                <div className="relative overflow-hidden aspect-[3/4]">
+                  <img
+                    src={destination.imageUrl || '/placeholder.svg'}
+                    alt={destination.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                  <CardContent className="absolute bottom-0 left-0 right-0 p-6 text-white">
+                    <h3 className="text-2xl font-bold mb-1">
+                      {destination.name}
+                    </h3>
+                    <p className="text-sm text-white/90">
+                      {destination.properties}
+                    </p>
+                  </CardContent>
+                </div>
+              </Card>
+            </Link>
           ))}
         </div>
       </div>

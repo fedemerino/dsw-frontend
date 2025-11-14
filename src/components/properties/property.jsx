@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { getPropertyById } from "@/lib/api"
+import { createBooking, getPropertyById } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -18,29 +18,26 @@ import {
   Wind,
   Tv,
   ChevronLeft,
-  CalendarIcon,
-  Users,
   ChevronRight,
 } from "lucide-react"
 import { useNavigate, useParams } from "react-router-dom"
-import { handleFavoriteToggle } from "@/lib/utils"
+import { useFavorites } from "@/hooks/useFavorites"
+import { showAuthRequiredToast } from "@/lib/authHelpers.js"
+import { useAuth } from "../auth/authContext.jsx"
 import { format } from "date-fns"
-import { Separator } from "../ui/separator"
 import { es } from "date-fns/locale"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
-import { Calendar } from "../ui/calendar"
+import { Separator } from "../ui/separator.jsx"
+import BookingCalendar from "./BookingCalendar.jsx"
+import { toast } from "sonner"
 
 export const Property = () => {
   const params = useParams()
+  const { toggleFavorite, isFavorite } = useFavorites()
+  const { user, isAuthenticated } = useAuth()
   const [property, setProperty] = useState(null)
-  const [isFavorite, setIsFavorite] = useState(false)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
-  const [checkIn, setCheckIn] = useState(null)
-  const [checkOut, setCheckOut] = useState(null)
-  const [guests, setGuests] = useState(1)
   const [showAllReviews, setShowAllReviews] = useState(false)
   const navigate = useNavigate()
-  const userEmail = "admin@reservar.com"
 
   useState(() => {
     const fetchPropertyDetails = async () => {
@@ -56,7 +53,7 @@ export const Property = () => {
   }
 
   const handleFavClick = () => {
-    handleFavoriteToggle(isFavorite, userEmail, property.id, setIsFavorite)
+    toggleFavorite(property.id)
   }
 
   const amenityIcons = {
@@ -68,33 +65,36 @@ export const Property = () => {
     TV: Tv,
   }
 
-  const calculateTotal = () => {
-    if (!checkIn || !checkOut) return 0
-    const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24))
-    return nights * property.price
-  }
+  const handleReserve = async ({ checkIn, checkOut, guests }) => {
+    if (!isAuthenticated || !user?.email) {
+      showAuthRequiredToast('reservar', () => navigate('/login'))
+      return false
+    }
 
-  const handleReserve = () => {
-    console.log('Reservar clicked')
-    // if (!user) {
-    //   router.push("/login")
-    //   return
-    // }
-    // if (!checkIn || !checkOut) {
-    //   alert("Por favor selecciona las fechas de check-in y check-out")
-    //   return
-    // }
+    const bookingData = {
+      listingId: property.id,
+      startDate: checkIn.toISOString(),
+      endDate: checkOut.toISOString(),
+      guests,
+    }
 
-    // const bookingData = {
-    //   propertyId: property.id,
-    //   checkIn: checkIn.toISOString(),
-    //   checkOut: checkOut.toISOString(),
-    //   guests,
-    //   totalPrice: calculateTotal() + Math.round(calculateTotal() * 0.1),
-    // }
+    const response = await createBooking(bookingData)
+    if (response.status === 201) {
+      toast.success('Reserva confirmada exitosamente')
+      setTimeout(() => {
+        navigate("/bookings")
+      }, 1000)
+    } else {
+      toast.error(response.data.message)
+    }
 
+    // Aquí puedes:
+    // 1. Guardar en localStorage y redirigir a página de confirmación
     // localStorage.setItem("pendingBooking", JSON.stringify(bookingData))
-    // router.push("/booking/confirm")
+    // navigate("/booking/confirm")
+
+    // 2. O enviar directamente al backend
+    // await createBooking(bookingData)
   }
   return (
     <div className="min-h-screen bg-background">
@@ -138,12 +138,12 @@ export const Property = () => {
               variant="outline"
               size="icon"
               onClick={handleFavClick}
-              className={cn(isFavorite && "text-accent hover:text-accent")}
+              className={cn(isFavorite(property.id) && "text-accent hover:text-accent")}
             >
               <Heart
                 className="h-4 w-4"
                 strokeOpacity="0.5"
-                fill={isFavorite ? "red" : "none"}
+                fill={isFavorite(property.id) ? "red" : "none"}
               />
             </Button>
             <Button variant="outline" size="icon">
@@ -156,7 +156,7 @@ export const Property = () => {
           {/* Imagen principal */}
           <div className="relative rounded-xl overflow-hidden h-[500px]">
             <img
-              src={property.images[selectedImageIndex].url || "/placeholder.svg"}
+              src={property?.images?.[selectedImageIndex]?.url || "/placeholder.svg"}
               alt={`${property.title} - imagen ${selectedImageIndex + 1}`}
               className="w-full h-full object-cover"
             />
@@ -193,7 +193,7 @@ export const Property = () => {
 
           {/* Miniaturas */}
           {property.images.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-6 gap-2">
               {property.images.map((img, index) => (
                 <button
                   key={index}
@@ -206,7 +206,7 @@ export const Property = () => {
                   )}
                 >
                   <img
-                    src={img || "/placeholder.svg"}
+                    src={img.url || "/placeholder.svg"}
                     alt={`${property.title} - miniatura ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
@@ -225,7 +225,7 @@ export const Property = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-xl font-semibold text-foreground mb-1">
-                      {property.type}
+                      {property.propertyType}
                     </h2>
                     <div className="flex items-center gap-4 text-muted-foreground">
                       <div className="flex items-center gap-1">
@@ -238,7 +238,7 @@ export const Property = () => {
                       </div>
                     </div>
                   </div>
-                  <Badge variant="secondary">{property.type}</Badge>
+                  <Badge variant="secondary">{property.propertyType}</Badge>
                 </div>
                 <Separator className="my-4" />
                 <p className="text-muted-foreground leading-relaxed">
@@ -347,138 +347,15 @@ export const Property = () => {
             </Card>
           </div>
 
-          {/* Booking Card */}
+          {/* Booking Calendar */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-4">
-              <CardContent className="p-6">
-                <div className="mb-6">
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-3xl font-bold text-foreground">
-                      ${property.pricePerNight}
-                    </span>
-                    <span className="text-muted-foreground">/ noche</span>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Check-in/out */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "justify-start text-left font-normal",
-                            !checkIn && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {checkIn ? format(checkIn, "dd/MM/yy") : "Check-in"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={checkIn}
-                          onSelect={setCheckIn}
-                        />
-                      </PopoverContent>
-                    </Popover>
-
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "justify-start text-left font-normal",
-                            !checkOut && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {checkOut
-                            ? format(checkOut, "dd/MM/yy")
-                            : "Check-out"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={checkOut}
-                          onSelect={setCheckOut}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  {/* Guests */}
-                  <div className="flex items-center justify-between p-3 border border-border rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">Huéspedes</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 bg-transparent"
-                        onClick={() => setGuests(Math.max(1, guests - 1))}
-                      >
-                        -
-                      </Button>
-                      <span className="w-8 text-center font-semibold">
-                        {guests}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 bg-transparent"
-                        onClick={() => setGuests(guests + 1)}
-                      >
-                        +
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Button className="w-full" size="lg" onClick={handleReserve}>
-                    Reservar
-                  </Button>
-
-                  {checkIn && checkOut && (
-                    <div className="space-y-2 pt-4 border-t border-border">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          ${property.price} x{" "}
-                          {Math.ceil(
-                            (checkOut - checkIn) / (1000 * 60 * 60 * 24)
-                          )}{" "}
-                          noches
-                        </span>
-                        <span className="font-semibold">
-                          ${calculateTotal()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">
-                          Tarifa de servicio
-                        </span>
-                        <span className="font-semibold">
-                          ${Math.round(calculateTotal() * 0.1)}
-                        </span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between font-semibold text-lg">
-                        <span>Total</span>
-                        <span>
-                          $
-                          {calculateTotal() +
-                            Math.round(calculateTotal() * 0.1)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <BookingCalendar
+              listingId={property.id}
+              pricePerNight={property.pricePerNight}
+              onReserve={handleReserve}
+              minNights={2}
+              maxNights={20}
+            />
           </div>
         </div>
       </div>

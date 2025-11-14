@@ -27,7 +27,6 @@ import { cn } from "@/lib/utils"
 import { getDestinations } from "@/lib/api"
 import { debounce } from "lodash"
 import { format } from "date-fns"
-import { Calendar as DatePicker } from "@/components/ui/calendar"
 import Calendar07 from "@/components/calendar-07"
 
 export const SearchSection = () => {
@@ -208,7 +207,7 @@ export const SearchSection = () => {
           <Button
             type="submit"
             size="lg"
-            className="w-full mt-6 h-12 text-base font-semibold"
+            className="w-full mt-6 h-12 text-base font-semibold cursor-pointer"
           >
             <Search className="mr-2 h-5 w-5" />
             Buscar alojamientos

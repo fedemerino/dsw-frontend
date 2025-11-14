@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
+import { useSearchParams } from "react-router-dom"
 import { PropertyCard } from "../shared/propertyCard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,20 +14,28 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { Search, SlidersHorizontal, X } from "lucide-react"
+import { Search, X } from "lucide-react"
 import { PROPERTY_TYPES } from "@/lib/constants"
 import { getAmenities, getListings } from "@/lib/api"
 import debounce from "lodash/debounce"
 
 export const SearchPage = () => {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedType, setSelectedType] = useState("all")
-  const [priceRange, setPriceRange] = useState([0, 300])
-  const [minRating, setMinRating] = useState(0)
-  const [selectedAmenities, setSelectedAmenities] = useState([]) // store ids
-  const [sortBy, setSortBy] = useState("recommended")
+  const [searchParams, setSearchParams] = useSearchParams()
   const [properties, setProperties] = useState([])
   const [amenities, setAmenities] = useState([])
+
+  // Read from URL params
+  const searchTerm = searchParams.get("search") || ""
+  const selectedType = searchParams.get("type") || "all"
+  const priceFrom = parseInt(searchParams.get("priceFrom") || "0")
+  const priceTo = parseInt(searchParams.get("priceTo") || "300")
+  const priceRange = useMemo(() => [priceFrom, priceTo], [priceFrom, priceTo])
+  const minRating = parseFloat(searchParams.get("rating") || "0")
+  const selectedAmenities = useMemo(() => {
+    const amenitiesParam = searchParams.get("amenities")
+    return amenitiesParam ? amenitiesParam.split(",").filter(Boolean) : []
+  }, [searchParams])
+  const sortBy = searchParams.get("sort") || "recommended"
 
   const fetchAmenities = async () => {
     try {
@@ -41,27 +50,90 @@ export const SearchPage = () => {
     fetchAmenities()
   }, [])
 
+  // Helper function to update URL params
+  const updateSearchParams = useCallback((updates) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined || value === "") {
+          newParams.delete(key)
+        } else if (key === "priceFrom" && value === "0") {
+          newParams.delete(key)
+        } else if (key === "priceTo" && value === "300") {
+          newParams.delete(key)
+        } else if (key === "rating" && value === "0") {
+          newParams.delete(key)
+        } else if (key === "type" && value === "all") {
+          newParams.delete(key)
+        } else if (key === "sort" && value === "recommended") {
+          newParams.delete(key)
+        } else {
+          newParams.set(key, value.toString())
+        }
+      })
+      return newParams
+    })
+  }, [setSearchParams])
+
+  // Update search term
+  const handleSearchChange = (value) => {
+    updateSearchParams({ search: value })
+  }
+
+  // Update property type
+  const handleTypeChange = (value) => {
+    updateSearchParams({ type: value })
+  }
+
+  // Update price range
+  const handlePriceRangeChange = (range) => {
+    setSearchParams((prev) => {
+      const newParams = new URLSearchParams(prev)
+      if (range[0] > 0) {
+        newParams.set("priceFrom", range[0].toString())
+      } else {
+        newParams.delete("priceFrom")
+      }
+      if (range[1] < 300) {
+        newParams.set("priceTo", range[1].toString())
+      } else {
+        newParams.delete("priceTo")
+      }
+      return newParams
+    })
+  }
+
+  // Update rating
+  const handleRatingChange = (value) => {
+    updateSearchParams({ rating: value })
+  }
+
   // Toggle amenity by id
   const toggleAmenity = (amenityId) => {
-    setSelectedAmenities((prev) =>
-      prev.includes(amenityId)
-        ? prev.filter((a) => a !== amenityId)
-        : [...prev, amenityId]
-    )
+    const newAmenities = selectedAmenities.includes(amenityId)
+      ? selectedAmenities.filter((a) => a !== amenityId)
+      : [...selectedAmenities, amenityId]
+    updateSearchParams({
+      amenities: newAmenities.length > 0 ? newAmenities.join(",") : undefined
+    })
+  }
+
+  // Update sort
+  const handleSortChange = (value) => {
+    updateSearchParams({ sort: value })
   }
 
   // Build backend filters and fetch listings
-  const fetchListings = useCallback(async (overrides = {}) => {
+  const fetchListings = useCallback(async () => {
     try {
       const filters = {
         propertyType: selectedType !== "all" ? selectedType : undefined,
-        priceFrom: priceRange[0] || undefined,
-        priceTo: priceRange[1] || undefined,
+        priceFrom: priceFrom > 0 ? priceFrom : undefined,
+        priceTo: priceTo < 300 ? priceTo : undefined,
         ratingFrom: minRating > 0 ? minRating : undefined,
         amenities: selectedAmenities.length > 0 ? selectedAmenities.join(",") : undefined,
         limit: 50,
         search: searchTerm || undefined,
-        ...overrides,
       }
 
       // Remove undefined keys
@@ -74,21 +146,25 @@ export const SearchPage = () => {
     } catch (error) {
       console.error("Error fetching listings:", error)
     }
-  }, [selectedType, priceRange, minRating, selectedAmenities, searchTerm])
+  }, [selectedType, priceFrom, priceTo, minRating, selectedAmenities, searchTerm])
 
   // Debounced search to avoid calling backend on every keystroke
   const debouncedFetch = useMemo(() => debounce(fetchListings, 400), [fetchListings])
 
+  // Track if this is the initial mount
+  const isInitialMount = useRef(true)
+
   useEffect(() => {
-    // call debounced on search term changes
+    // On initial mount, execute immediately
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      fetchListings()
+      return
+    }
+    // For subsequent changes, use debounce
     debouncedFetch()
     return () => debouncedFetch.cancel()
-  }, [searchTerm, selectedType, priceRange, minRating, selectedAmenities, debouncedFetch])
-
-  // Initial load
-  useEffect(() => {
-    fetchListings()
-  }, [])
+  }, [searchTerm, selectedType, priceFrom, priceTo, minRating, selectedAmenities, debouncedFetch, fetchListings])
 
   // Use backend properties; allow client-side sorting
   const filteredProperties = useMemo(() => {
@@ -110,13 +186,7 @@ export const SearchPage = () => {
   }, [properties, sortBy])
 
   const clearFilters = () => {
-    setSearchTerm("")
-    setSelectedType("all")
-    setPriceRange([0, 300])
-    setMinRating(0)
-    setSelectedAmenities([])
-    setSortBy("recommended")
-    fetchListings()
+    setSearchParams({})
   }
 
   return (
@@ -134,7 +204,7 @@ export const SearchPage = () => {
                 <Input
                   placeholder="Buscar por destino o nombre..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-10 h-12 bg-card"
                 />
               </div>
@@ -173,7 +243,7 @@ export const SearchPage = () => {
                       </Label>
                       <Select
                         value={selectedType}
-                        onValueChange={setSelectedType}
+                        onValueChange={handleTypeChange}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Todos los tipos" />
@@ -199,7 +269,7 @@ export const SearchPage = () => {
                         max={300}
                         step={10}
                         value={priceRange}
-                        onValueChange={setPriceRange}
+                        onValueChange={handlePriceRangeChange}
                         className="mb-2"
                       />
                       <div className="flex justify-between text-xs text-muted-foreground">
@@ -215,7 +285,7 @@ export const SearchPage = () => {
                       </Label>
                       <Select
                         value={minRating.toString()}
-                        onValueChange={(v) => setMinRating(Number(v))}
+                        onValueChange={handleRatingChange}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -266,7 +336,7 @@ export const SearchPage = () => {
                 <p className="text-muted-foreground">
                   {filteredProperties.length} {filteredProperties.length === 1 ? "alojamiento" : "alojamientos"} encontrados
                 </p>
-                <Select value={sortBy} onValueChange={setSortBy}>
+                <Select value={sortBy} onValueChange={handleSortChange}>
                   <SelectTrigger className="w-48">
                     <SelectValue />
                   </SelectTrigger>

@@ -9,16 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/components/auth/authContext';
 
 export function Header() {
-  const user = {
-    name: 'Federico Merino',
-    email: 'federico.merino@example.com',
-  };
-  const logout = () => {
-    console.log('Logging out');
-    // Lógica de cierre de sesión
-  };
+  const { user, logout } = useAuth();
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="container mx-auto flex h-16 items-center justify-between px-10">
@@ -52,7 +46,7 @@ export function Header() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium">{user.name}</p>
+                  <p className="text-sm font-medium">{user.fullName}</p>
                   <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
                 <DropdownMenuSeparator />
@@ -60,7 +54,10 @@ export function Header() {
                   <a href="/profile">Mi perfil</a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer">
-                  <a href="/bookings">Mis reservas</a>
+                  <a href="/profile/bookings">Mis reservas</a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <a href="/profile/listings">Mis publicaciones</a>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="cursor-pointer">
                   <a href="/favorites">
